@@ -9,11 +9,11 @@ import (
 
 type Router struct {
 	mux  *http.ServeMux
-	ctrl Controller
+	ctrl *Controller
 }
 
 func New(service *service.Service) *Router {
-	ctrl := Controller{
+	ctrl := &Controller{
 		service: service,
 	}
 
@@ -29,7 +29,7 @@ func New(service *service.Service) *Router {
 	}
 }
 
-func (r Router) Handler() *http.ServeMux {
+func (r *Router) Handler() *http.ServeMux {
 	return r.mux
 }
 
@@ -38,46 +38,49 @@ type Controller struct {
 	errHandler errHandler
 }
 
-func (c Controller) handleAdd(w http.ResponseWriter, r *http.Request) {
+func (c *Controller) handleAdd(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	key := r.URL.Query().Get("key")
-	value := r.URL.Query().Get("value")
-	expires_at := r.URL.Query().Get("expires_at")
+	r.ParseForm()
+	key := r.PostFormValue("key")
+	value := r.PostFormValue("value")
+	expires_at := r.PostFormValue("expires_at")
 
 	err := c.service.Add(key, value, expires_at)
 	if err != nil {
 		status, msg := c.errHandler.Handle(err)
 		http.Error(w, msg, status)
+		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
-
+	w.WriteHeader(http.StatusOK)
 }
 
-func (c Controller) handleSet(w http.ResponseWriter, r *http.Request) {
+func (c *Controller) handleSet(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "PUT" {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	key := r.URL.Query().Get("key")
-	value := r.URL.Query().Get("value")
-	expires_at := r.URL.Query().Get("expires_at")
+	r.ParseForm()
+	key := r.Form.Get("key")
+	value := r.Form.Get("value")
+	expires_at := r.Form.Get("expires_at")
 
 	err := c.service.Set(key, value, expires_at)
 	if err != nil {
 		status, msg := c.errHandler.Handle(err)
 		http.Error(w, msg, status)
+		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusOK)
 }
 
-func (c Controller) handleGet(w http.ResponseWriter, r *http.Request) {
+func (c *Controller) handleGet(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -89,34 +92,14 @@ func (c Controller) handleGet(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		status, msg := c.errHandler.Handle(err)
 		http.Error(w, msg, status)
+		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, res)
-
-	// entry, err := c.storage.Read(key)
-	// if err != nil {
-	// 	if errors.Is(err, storage.ErrKeyNotFound) {
-	// 		http.Error(w, err.Error(), http.StatusNotFound)
-	// 	} else {
-	// 		log.Println(err)
-	// 		http.Error(w, "internal error", http.StatusInternalServerError)
-	// 	}
-	// 	return
-	// }
-
-	// jsonEntry, err := storage.ToJSON(*entry)
-	// if err != nil {
-	// 	log.Println(err)
-	// 	http.Error(w, "internal error", http.StatusInternalServerError)
-	// 	return
-	// }
-
-	// w.WriteHeader(http.StatusAccepted)
-	// w.Write(jsonEntry)
 }
 
-func (c Controller) handleDel(w http.ResponseWriter, r *http.Request) {
+func (c *Controller) handleDel(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "DELETE" {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -128,7 +111,8 @@ func (c Controller) handleDel(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		status, msg := c.errHandler.Handle(err)
 		http.Error(w, msg, status)
+		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusOK)
 }

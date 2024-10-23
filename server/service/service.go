@@ -16,9 +16,9 @@ func New(storage storage.Storage) *Service {
 	}
 }
 
-func (s Service) Add(key, value, expires_at string) error {
+func (s *Service) Add(key, value, expiresAt string) error {
 	timeUpdatedAt := time.Now()
-	timeExpiresAt, err := time.Parse("", expires_at)
+	timeExpiresAt, err := s.getExpirationTime(expiresAt)
 	if err != nil {
 		return err
 	}
@@ -35,9 +35,9 @@ func (s Service) Add(key, value, expires_at string) error {
 	return s.storage.Create(entry)
 }
 
-func (s Service) Set(key, value, expires_at string) error {
+func (s *Service) Set(key, value, expiresAt string) error {
 	timeUpdateddAt := time.Now()
-	timeExpiresAt, err := time.Parse("", expires_at)
+	timeExpiresAt, err := s.getExpirationTime(expiresAt)
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (s Service) Set(key, value, expires_at string) error {
 	return s.storage.Update(entry)
 }
 
-func (s Service) Get(key string) (string, error) {
+func (s *Service) Get(key string) (string, error) {
 	entry, err := s.storage.Read(key)
 	if err != nil {
 		return "", err
@@ -68,6 +68,23 @@ func (s Service) Get(key string) (string, error) {
 	return string(jsonEntry), nil
 }
 
-func (s Service) Delete(key string) error {
+func (s *Service) Delete(key string) error {
 	return s.storage.Delete(key)
+}
+
+func (s *Service) getExpirationTime(expiresAt string) (time.Time, error) {
+	var timeExpiresAt time.Time
+
+	// if expiration time was not provided - set default
+	if len(expiresAt) == 0 {
+		timeExpiresAt = time.Now().Add(time.Hour * 24)
+	} else {
+		parsedTime, err := time.Parse(time.RFC1123Z, expiresAt)
+		if err != nil {
+			return time.Time{}, err
+		}
+		timeExpiresAt = parsedTime
+	}
+
+	return timeExpiresAt, nil
 }
