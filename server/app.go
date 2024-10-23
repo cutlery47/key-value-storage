@@ -6,13 +6,15 @@ import (
 
 	"github.com/cutlery47/key-value-storage/server/router"
 	"github.com/cutlery47/key-value-storage/server/server"
+	"github.com/cutlery47/key-value-storage/server/service"
 	"github.com/cutlery47/key-value-storage/server/storage"
 )
 
 func Run() {
-	st := storage.NewLocalStorage("data")
-	rt := router.New(st)
-	serv := server.New(rt.Handler())
+	storage := storage.NewLocalStorage("data")
+	service := service.New(storage)
+	router := router.New(service)
+	serv := server.New(router.Handler())
 
 	serv.Serve()
 }
@@ -22,7 +24,7 @@ func Test() {
 		Key: "somekey1",
 		Value: storage.Value{
 			Data:      "someval1",
-			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
 			ExpiresAt: time.Now(),
 		},
 	}
@@ -31,7 +33,7 @@ func Test() {
 		Key: "somekey3",
 		Value: storage.Value{
 			Data:      "someval3",
-			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
 			ExpiresAt: time.Now().Add(time.Minute),
 		},
 	}
@@ -64,7 +66,7 @@ func Test() {
 		Key: "somekey1",
 		Value: storage.Value{
 			Data:      "someval2",
-			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
 			ExpiresAt: time.Now().Add(time.Minute),
 		},
 	}
@@ -79,7 +81,7 @@ func Test() {
 		Key: "somekey4",
 		Value: storage.Value{
 			Data:      "someval2",
-			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
 			ExpiresAt: time.Now(),
 		},
 	}

@@ -43,6 +43,6 @@ type Value struct {
 	// essentially a value of the key
 	Data string `json:"data"`
 	// time info
-	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
