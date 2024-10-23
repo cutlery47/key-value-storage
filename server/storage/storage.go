@@ -10,10 +10,10 @@ import (
 )
 
 type Storage interface {
-	Create(entry Entry) error
-	Read(key Key) (*Entry, error)
-	Update(entry Key) error
-	Delete(key Key) error
+	Create(entry InEntry) error
+	Read(key string) (*OutEntry, error)
+	Update(entry InEntry) error
+	Delete(key string) error
 }
 
 type LocalStorage struct {
@@ -34,7 +34,7 @@ func NewLocalStorage(filepath string) *LocalStorage {
 	return ls
 }
 
-func (ls LocalStorage) Create(entry Entry) error {
+func (ls LocalStorage) Create(entry InEntry) error {
 	// reading data from a file
 	data, err := ls.file.read()
 	if err != nil {
@@ -43,7 +43,7 @@ func (ls LocalStorage) Create(entry Entry) error {
 
 	// check if provided value is already stored
 	if _, ok := (*data)[entry.Key]; ok {
-		return ErrStorageKeyNotFound
+		return ErrKeyAlreadyExists
 	} else {
 		(*data)[entry.Key] = entry.Value
 	}
@@ -56,7 +56,7 @@ func (ls LocalStorage) Create(entry Entry) error {
 	return nil
 }
 
-func (ls LocalStorage) Read(key Key) (*Entry, error) {
+func (ls LocalStorage) Read(key string) (*OutEntry, error) {
 	// reading data from a file
 	data, err := ls.file.read()
 	if err != nil {
@@ -67,13 +67,13 @@ func (ls LocalStorage) Read(key Key) (*Entry, error) {
 	val, ok := (*data)[key]
 	// check if key exists
 	if !ok {
-		return nil, ErrStorageKeyNotFound
+		return nil, ErrKeyNotFound
 	}
 
-	return &Entry{Value: val, Key: key}, nil
+	return &OutEntry{Value: val.Data, Key: key}, nil
 }
 
-func (ls LocalStorage) Update(entry Entry) error {
+func (ls LocalStorage) Update(entry InEntry) error {
 	// reading data from a file
 	data, err := ls.file.read()
 	if err != nil {
@@ -82,7 +82,7 @@ func (ls LocalStorage) Update(entry Entry) error {
 
 	// check if provided key is already stored
 	if _, ok := (*data)[entry.Key]; !ok {
-		return ErrStorageKeyNotFound
+		return ErrKeyNotFound
 	} else {
 		(*data)[entry.Key] = entry.Value
 	}
@@ -95,7 +95,7 @@ func (ls LocalStorage) Update(entry Entry) error {
 	return nil
 }
 
-func (ls LocalStorage) Delete(key Key) error {
+func (ls LocalStorage) Delete(key string) error {
 	// reading data from a file
 	data, err := ls.file.read()
 	if err != nil {
@@ -104,7 +104,7 @@ func (ls LocalStorage) Delete(key Key) error {
 
 	// check if data exists
 	if _, ok := (*data)[key]; !ok {
-		return ErrStorageKeyNotFound
+		return ErrKeyNotFound
 	} else {
 		delete(*data, key)
 	}
@@ -126,6 +126,7 @@ func (ls LocalStorage) Cleanup(cooldown time.Duration, finChan <-chan byte, sigC
 		// handle expired data
 		case <-time.After(cooldown):
 			log.Println("cleanup start")
+
 			// locking up any I/O on file until cleanup is over
 			ls.mu.Lock()
 			defer ls.mu.Unlock()
@@ -168,7 +169,7 @@ type fileHandler struct {
 }
 
 // runtime data storage
-type data map[Key]Value
+type data map[string]Value
 
 // reads data from a file by specified filename
 // converts raw JSON data into a map
@@ -176,7 +177,7 @@ func (f fileHandler) read() (*data, error) {
 	byteData, err := os.ReadFile(f.filepath)
 	if err != nil {
 		log.Println("error when reading data:", err)
-		return nil, ErrStorageFileRead
+		return nil, ErrFileRead
 	}
 
 	// if our file is completely empty,
@@ -191,24 +192,24 @@ func (f fileHandler) read() (*data, error) {
 
 	if err := json.Unmarshal(byteData, currData); err != nil {
 		log.Println("error when unmarshalling data:", err)
-		return nil, ErrStorageJSONUnmarshall
+		return nil, ErrJSONUnmarshall
 	}
 
 	return currData, nil
 }
 
-// converts incoming Go-map into JSON
+// converts incoming data into JSON
 // pushes updates to a file by specified filename
 func (f fileHandler) flush(newData data) error {
 	newJsonData, err := json.Marshal(newData)
 	if err != nil {
 		log.Println("error when marshalling data:", err)
-		return ErrStorageJSONMarshall
+		return ErrJSONMarshall
 	}
 
 	if err := os.WriteFile(f.filepath, newJsonData, 0666); err != nil {
 		log.Println("error when writing data:", err)
-		return ErrStorageFileWrite
+		return ErrFileWrite
 	}
 
 	return nil

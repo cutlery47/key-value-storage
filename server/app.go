@@ -4,15 +4,21 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cutlery47/key-value-storage/server/router"
+	"github.com/cutlery47/key-value-storage/server/server"
 	"github.com/cutlery47/key-value-storage/server/storage"
 )
 
 func Run() {
+	st := storage.NewLocalStorage("data")
+	rt := router.New(st)
+	serv := server.New(rt.Handler())
 
+	serv.Serve()
 }
 
 func Test() {
-	entry1 := storage.Entry{
+	entry1 := storage.InEntry{
 		Key: "somekey1",
 		Value: storage.Value{
 			Data:      "someval1",
@@ -21,45 +27,45 @@ func Test() {
 		},
 	}
 
-	entry2 := storage.Entry{
-		Key: "somekey2",
+	entry2 := storage.InEntry{
+		Key: "somekey3",
 		Value: storage.Value{
-			Data:      "someval2",
+			Data:      "someval3",
 			CreatedAt: time.Now(),
-			ExpiresAt: time.Now(),
+			ExpiresAt: time.Now().Add(time.Minute),
 		},
 	}
 
 	ls := storage.NewLocalStorage("data")
 
 	if err := ls.Create(entry1); err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("create 1:", err.Error())
 	}
 
 	if err := ls.Create(entry2); err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("create 2:", err.Error())
 	}
 
 	readEntry, err := ls.Read("somekey1")
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("read1:", err.Error())
 	} else {
 		fmt.Println(*readEntry)
 	}
 
 	readEntry2, err := ls.Read("somekey5")
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("read2:", err.Error())
 	} else {
 		fmt.Println(*readEntry2)
 	}
 
-	updEntry1 := storage.Entry{
+	updEntry1 := storage.InEntry{
 		Key: "somekey1",
 		Value: storage.Value{
 			Data:      "someval2",
 			CreatedAt: time.Now(),
-			ExpiresAt: time.Now(),
+			ExpiresAt: time.Now().Add(time.Minute),
 		},
 	}
 
@@ -69,7 +75,7 @@ func Test() {
 		fmt.Println("updated")
 	}
 
-	updEntry2 := storage.Entry{
+	updEntry2 := storage.InEntry{
 		Key: "somekey4",
 		Value: storage.Value{
 			Data:      "someval2",
@@ -84,8 +90,8 @@ func Test() {
 		fmt.Println("updated")
 	}
 
-	delKey1 := storage.Key("somekey3")
-	delKey2 := storage.Key("somekey5")
+	delKey1 := "somekey3"
+	delKey2 := "somekey5"
 
 	if err := ls.Delete(delKey1); err != nil {
 		fmt.Println(err.Error())
@@ -103,7 +109,11 @@ func Test() {
 	sigChan := make(chan byte)
 	errSigChan := make(chan error)
 
-	go ls.Cleanup(5*time.Second, finChan, sigChan, errSigChan)
+	go ls.Cleanup(time.Second, finChan, sigChan, errSigChan)
 
-	<-sigChan
+	select {
+	case <-sigChan:
+	case err := <-errSigChan:
+		fmt.Println(err)
+	}
 }
