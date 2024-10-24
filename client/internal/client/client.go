@@ -188,7 +188,6 @@ func (app ClientApp) Run() {
 			fmt.Println(res)
 		}
 	}
-
 }
 
 // incoming flag params parser
