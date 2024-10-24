@@ -13,19 +13,19 @@ import (
 
 func Run() {
 	// request logger
-	reqLog, err := logger.NewJsonFile("logger/logs/requests.log", logrus.InfoLevel)
+	reqLog, err := logger.NewJsonFile("storage/logger/logs/requests.log", logrus.InfoLevel)
 	if err != nil {
 		log.Fatal("couldn't configure request logger:", err)
 	}
 
 	// cleanup logger
-	cleLog, err := logger.NewJsonFile("logger/logs/cleanup.log", logrus.InfoLevel)
+	cleLog, err := logger.NewJsonFile("storage/logger/logs/cleanup.log", logrus.InfoLevel)
 	if err != nil {
 		log.Fatal("couldn't configure cleanup logger", err)
 	}
 
 	// error logger
-	errLog, err := logger.NewJsonFile("logger/logs/error.log", logrus.ErrorLevel)
+	errLog, err := logger.NewJsonFile("storage/logger/logs/error.log", logrus.ErrorLevel)
 	if err != nil {
 		log.Fatal("couldn't configure error logger", err)
 	}

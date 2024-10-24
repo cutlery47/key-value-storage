@@ -1,3 +1,5 @@
+.PHONY: client storage all
+
 client:
 	mkdir client/build
 	go build -C client/cmd -o ../build main.go
