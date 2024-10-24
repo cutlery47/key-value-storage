@@ -7,6 +7,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Storage interface {
@@ -19,9 +21,10 @@ type Storage interface {
 type LocalStorage struct {
 	file fileHandler
 	mu   *sync.Mutex
+	log  *logrus.Logger
 }
 
-func NewLocalStorage(filepath string) *LocalStorage {
+func NewLocalStorage(filepath string, log *logrus.Logger) *LocalStorage {
 	file := fileHandler{
 		filepath: filepath,
 	}
@@ -29,14 +32,16 @@ func NewLocalStorage(filepath string) *LocalStorage {
 	ls := &LocalStorage{
 		file: file,
 		mu:   &sync.Mutex{},
+		log:  log,
 	}
 
+	// default clanup time - 10 seconds
 	go ls.Cleanup(10 * time.Second)
 
 	return ls
 }
 
-func (ls LocalStorage) Create(entry InEntry) error {
+func (ls *LocalStorage) Create(entry InEntry) error {
 	// reading data from a file
 	data, err := ls.file.read()
 	if err != nil {
@@ -58,7 +63,7 @@ func (ls LocalStorage) Create(entry InEntry) error {
 	return nil
 }
 
-func (ls LocalStorage) Read(key string) (*OutEntry, error) {
+func (ls *LocalStorage) Read(key string) (*OutEntry, error) {
 	// reading data from a file
 	data, err := ls.file.read()
 	if err != nil {
@@ -75,7 +80,7 @@ func (ls LocalStorage) Read(key string) (*OutEntry, error) {
 	return &OutEntry{Value: val.Data, Key: key}, nil
 }
 
-func (ls LocalStorage) Update(entry InEntry) error {
+func (ls *LocalStorage) Update(entry InEntry) error {
 	// reading data from a file
 	data, err := ls.file.read()
 	if err != nil {
@@ -97,7 +102,7 @@ func (ls LocalStorage) Update(entry InEntry) error {
 	return nil
 }
 
-func (ls LocalStorage) Delete(key string) error {
+func (ls *LocalStorage) Delete(key string) error {
 	// reading data from a file
 	data, err := ls.file.read()
 	if err != nil {
@@ -119,50 +124,53 @@ func (ls LocalStorage) Delete(key string) error {
 	return nil
 }
 
-func (ls LocalStorage) Cleanup(cooldown time.Duration) {
+func (ls *LocalStorage) Cleanup(cooldown time.Duration) {
 	for {
-		select {
-		// if we recieved finish signal - quit goroutine
-		// case <-finChan:
-		// 	return
-		// handle expired data
-		case <-time.After(cooldown):
-			log.Println("cleanup started")
+		// clean expired data each cooldown-amount seconds
+		<-time.After(cooldown)
 
-			// locking up any I/O on file until cleanup is over
-			ls.mu.Lock()
+		now := time.Now()
 
-			fileData, err := ls.file.read()
-			if err != nil {
-				// errSigChan <- err
-				return
-			}
+		ls.log.WithFields(logrus.Fields{
+			"status": "started",
+			"at":     now,
+		}).Info()
 
-			// current time
-			now := time.Now()
+		// locking up any I/O on file until cleanup is over
+		ls.mu.Lock()
 
-			// iterating over file data and calculating
-			// whether the expiration time exceedes current time
-			for k, v := range *fileData {
-				if v.ExpiresAt.Before(now) {
-					fmt.Printf("cleanup found: {%v: %v} \n", k, v.Data)
-					delete(*fileData, k)
-				}
-			}
-
-			if err := ls.file.flush(*fileData); err != nil {
-				// errSigChan <- err
-				return
-			}
-
-			ls.mu.Unlock()
-
-			log.Println("cleanup ended")
-
+		fileData, err := ls.file.read()
+		if err != nil {
+			// errSigChan <- err
+			return
 		}
 
-		// signaling that handling has completed
-		// sigChan <- 1
+		// iterating over file data and calculating
+		// whether the expiration time exceedes current time
+		for k, v := range *fileData {
+			if v.ExpiresAt.Before(now) {
+				ls.log.WithFields(logrus.Fields{
+					"status": "found",
+					"data":   fmt.Sprintf("key=%v: value=%v \n", k, v.Data),
+					"at":     now,
+				}).Info()
+				// deleing entry
+				delete(*fileData, k)
+			}
+		}
+
+		if err := ls.file.flush(*fileData); err != nil {
+			// errSigChan <- err
+			return
+		}
+
+		ls.mu.Unlock()
+
+		ls.log.WithFields(logrus.Fields{
+			"status": "ended",
+			"at":     now,
+		}).Info()
+
 	}
 }
 

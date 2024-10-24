@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -27,20 +28,7 @@ func NewHTTP() *HTTPClient {
 }
 
 func (c *HTTPClient) Add(key, value string, ttl time.Duration) error {
-	if len(value) == 0 {
-		return ErrEmptyVal
-	}
-
-	// calculating expiration time
-	expiresAt := time.Now().Add(ttl)
-
-	req, err := http.NewRequest("POST", "http://localhost:8080/api/v1/add", nil)
-	if err != nil {
-		return err
-	}
-
-	req.PostForm = c.createPostForm(key, value, expiresAt.String())
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req, err := c.createAddSetRequest("POST", "http://localhost:8080/api/v1/add", key, value, ttl)
 
 	// send http request
 	res, err := c.http.Do(req)
@@ -54,20 +42,7 @@ func (c *HTTPClient) Add(key, value string, ttl time.Duration) error {
 }
 
 func (c *HTTPClient) Set(key, value string, ttl time.Duration) error {
-	if len(value) == 0 {
-		return ErrEmptyVal
-	}
-
-	// calculating expiration time
-	expiresAt := time.Now().Add(ttl)
-
-	req, err := http.NewRequest("POST", "http://localhost:8080/api/v1/set", nil)
-	if err != nil {
-		return err
-	}
-
-	req.PostForm = c.createPostForm(key, value, expiresAt.String())
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req, err := c.createAddSetRequest("PUT", "http://localhost:8080/api/v1/set", key, value, ttl)
 
 	// send http request
 	res, err := c.http.Do(req)
@@ -86,7 +61,6 @@ func (c *HTTPClient) Get(key string) (string, error) {
 		return "", err
 	}
 
-	// add query params
 	queryParams := req.URL.Query()
 	queryParams.Add("key", key)
 	req.URL.RawQuery = queryParams.Encode()
@@ -106,7 +80,6 @@ func (c *HTTPClient) Del(key string) error {
 		return err
 	}
 
-	// add query params
 	queryParams := req.URL.Query()
 	queryParams.Add("key", key)
 	req.URL.RawQuery = queryParams.Encode()
@@ -129,8 +102,7 @@ func (c *HTTPClient) handleResponse(res *http.Response) (msg string, err error) 
 		return msg, err
 	}
 
-	// body message
-	msg = string(body)[:len(body)-1] // for some reason theres one redundant \n
+	msg = string(body)
 
 	// check for server-side handled errors
 	if res.Status != "200 OK" {
@@ -138,6 +110,25 @@ func (c *HTTPClient) handleResponse(res *http.Response) (msg string, err error) 
 	}
 
 	return msg, err
+}
+
+func (c *HTTPClient) createAddSetRequest(method, url, key, value string, ttl time.Duration) (*http.Request, error) {
+	var expirationTime string
+	if ttl == 0 {
+		expirationTime = ""
+	} else {
+		expirationTime = time.Now().Add(ttl).Format(time.RFC3339)
+	}
+
+	postForm := c.createPostForm(key, value, expirationTime)
+	req, err := http.NewRequest(method, url, strings.NewReader(postForm.Encode()))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	return req, nil
 }
 
 func (c *HTTPClient) createPostForm(key, value, expiresAt string) url.Values {
@@ -186,7 +177,7 @@ func (app ClientApp) Run() {
 	}
 
 	if err != nil {
-		fmt.Println("Error:", err)
+		fmt.Print("Error: ", err)
 	} else {
 		if res == "" {
 			fmt.Println("Success!")

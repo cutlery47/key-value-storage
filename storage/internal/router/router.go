@@ -5,16 +5,23 @@ import (
 	"net/http"
 
 	"github.com/cutlery47/key-value-storage/storage/internal/service"
+	"github.com/sirupsen/logrus"
 )
 
 type Router struct {
 	mux  *http.ServeMux
 	ctrl *Controller
+	log  *logrus.Logger
 }
 
-func New(service *service.Service) *Router {
+func New(service *service.Service, infoLog, errLog *logrus.Logger) *Router {
+	errHandler := errHandler{
+		errLog: errLog,
+	}
+
 	ctrl := &Controller{
-		service: service,
+		service:    service,
+		errHandler: errHandler,
 	}
 
 	mux := http.NewServeMux()
@@ -26,11 +33,12 @@ func New(service *service.Service) *Router {
 	return &Router{
 		ctrl: ctrl,
 		mux:  mux,
+		log:  infoLog,
 	}
 }
 
-func (r *Router) Handler() *http.ServeMux {
-	return r.mux
+func (r *Router) Handler() http.Handler {
+	return WithLogging(r.mux, r.log)
 }
 
 type Controller struct {
@@ -45,6 +53,7 @@ func (c *Controller) handleAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	r.ParseForm()
+
 	key := r.PostFormValue("key")
 	value := r.PostFormValue("value")
 	expires_at := r.PostFormValue("expires_at")

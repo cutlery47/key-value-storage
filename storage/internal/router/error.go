@@ -1,10 +1,11 @@
 package router
 
 import (
-	"log"
 	"net/http"
+	"time"
 
 	"github.com/cutlery47/key-value-storage/storage/internal/storage"
+	"github.com/sirupsen/logrus"
 )
 
 var errStatus = map[error]int{
@@ -12,27 +13,27 @@ var errStatus = map[error]int{
 	storage.ErrKeyAlreadyExists: http.StatusBadRequest,
 }
 
-var errMessage = map[error]string{
-	storage.ErrKeyNotFound:      storage.ErrKeyNotFound.Error(),
-	storage.ErrKeyAlreadyExists: storage.ErrKeyAlreadyExists.Error(),
+type errHandler struct {
+	errLog *logrus.Logger
 }
 
-type errHandler struct{}
-
 func (h errHandler) Handle(err error) (status int, msg string) {
-	log.Println("error occured:", err.Error())
-
 	status = 500
 	msg = "internal server error"
 
+	// if error is not internal - map it to specific status
+	// else return 500 and log out the error
 	mapStatus, ok := errStatus[err]
 	if ok {
 		status = mapStatus
-	}
-
-	mapMsg, ok := errMessage[err]
-	if ok {
-		msg = mapMsg
+		msg = err.Error()
+	} else {
+		h.errLog.WithFields(
+			logrus.Fields{
+				"time":  time.Now(),
+				"error": err.Error(),
+			},
+		).Error()
 	}
 
 	return status, msg
