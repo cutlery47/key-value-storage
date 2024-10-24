@@ -2,8 +2,8 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
 	"os"
 	"sync"
 	"time"
@@ -88,11 +88,22 @@ func (ls *LocalStorage) Update(entry InEntry) error {
 	}
 
 	// check if provided key is already stored
-	if _, ok := (*data)[entry.Key]; !ok {
+	v, ok := (*data)[entry.Key]
+	if !ok {
 		return ErrKeyNotFound
-	} else {
-		(*data)[entry.Key] = entry.Value
 	}
+
+	// update ttl if a new one was provided
+	if !entry.Value.ExpiresAt.IsZero() {
+		v.ExpiresAt = entry.Value.ExpiresAt
+	}
+
+	// update value if a new one was provided
+	if entry.Value.Data != "" {
+		v.Data = entry.Value.Data
+	}
+
+	(*data)[entry.Key] = v
 
 	// updating file with new data
 	if err := ls.file.flush(*data); err != nil {
@@ -141,7 +152,6 @@ func (ls *LocalStorage) Cleanup(cooldown time.Duration) {
 
 		fileData, err := ls.file.read()
 		if err != nil {
-			// errSigChan <- err
 			return
 		}
 
@@ -154,13 +164,12 @@ func (ls *LocalStorage) Cleanup(cooldown time.Duration) {
 					"data":   fmt.Sprintf("key=%v: value=%v \n", k, v.Data),
 					"at":     now,
 				}).Info()
-				// deleing entry
+				// deleting entry
 				delete(*fileData, k)
 			}
 		}
 
 		if err := ls.file.flush(*fileData); err != nil {
-			// errSigChan <- err
 			return
 		}
 
@@ -178,6 +187,7 @@ func (ls *LocalStorage) Cleanup(cooldown time.Duration) {
 type fileHandler struct {
 	mu       *sync.Mutex
 	filepath string
+	errLog   *logrus.Logger
 }
 
 // runtime data storage
@@ -188,8 +198,12 @@ type data map[string]Value
 func (f fileHandler) read() (*data, error) {
 	byteData, err := os.ReadFile(f.filepath)
 	if err != nil {
-		log.Println("error when reading data:", err)
-		return nil, ErrFileRead
+		// if data file doesn't exist - create it
+		if errors.Is(err, os.ErrNotExist) {
+			_, err = os.Create(f.filepath)
+		} else {
+			return nil, ErrFileRead
+		}
 	}
 
 	// if our file is completely empty,
@@ -203,7 +217,6 @@ func (f fileHandler) read() (*data, error) {
 	currData := &data{}
 
 	if err := json.Unmarshal(byteData, currData); err != nil {
-		log.Println("error when unmarshalling data:", err)
 		return nil, ErrJSONUnmarshall
 	}
 
@@ -215,12 +228,10 @@ func (f fileHandler) read() (*data, error) {
 func (f fileHandler) flush(newData data) error {
 	newJsonData, err := json.Marshal(newData)
 	if err != nil {
-		log.Println("error when marshalling data:", err)
 		return ErrJSONMarshall
 	}
 
 	if err := os.WriteFile(f.filepath, newJsonData, 0666); err != nil {
-		log.Println("error when writing data:", err)
 		return ErrFileWrite
 	}
 

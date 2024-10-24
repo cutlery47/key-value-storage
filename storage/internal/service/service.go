@@ -17,10 +17,18 @@ func New(storage storage.Storage) *Service {
 }
 
 func (s *Service) Add(key, value, expiresAt string) error {
+	var timeExpiresAt time.Time
 	timeUpdatedAt := time.Now()
-	timeExpiresAt, err := s.getExpirationTime(expiresAt)
-	if err != nil {
-		return err
+
+	// if ttl was not provided - set default to 24 hours
+	if len(expiresAt) == 0 {
+		timeExpiresAt = time.Now().Add(time.Hour * 24)
+	} else {
+		parsed, err := time.Parse(time.RFC3339, expiresAt)
+		if err != nil {
+			return err
+		}
+		timeExpiresAt = parsed
 	}
 
 	entry := storage.InEntry{
@@ -36,10 +44,15 @@ func (s *Service) Add(key, value, expiresAt string) error {
 }
 
 func (s *Service) Set(key, value, expiresAt string) error {
+	var timeExpiresAt time.Time
 	timeUpdateddAt := time.Now()
-	timeExpiresAt, err := s.getExpirationTime(expiresAt)
-	if err != nil {
-		return err
+
+	if len(expiresAt) != 0 {
+		parsed, err := time.Parse(time.RFC3339, expiresAt)
+		if err != nil {
+			return err
+		}
+		timeExpiresAt = parsed
 	}
 
 	entry := storage.InEntry{
@@ -70,21 +83,4 @@ func (s *Service) Get(key string) (string, error) {
 
 func (s *Service) Delete(key string) error {
 	return s.storage.Delete(key)
-}
-
-func (s *Service) getExpirationTime(expiresAt string) (time.Time, error) {
-	var timeExpiresAt time.Time
-
-	// if expiration time was not provided - set default
-	if len(expiresAt) == 0 {
-		timeExpiresAt = time.Now().Add(time.Hour * 24)
-	} else {
-		parsedTime, err := time.Parse(time.RFC3339, expiresAt)
-		if err != nil {
-			return time.Time{}, err
-		}
-		timeExpiresAt = parsedTime
-	}
-
-	return timeExpiresAt, nil
 }

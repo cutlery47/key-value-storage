@@ -30,7 +30,6 @@ func NewHTTP() *HTTPClient {
 func (c *HTTPClient) Add(key, value string, ttl time.Duration) error {
 	req, err := c.createAddSetRequest("POST", "http://localhost:8080/api/v1/add", key, value, ttl)
 
-	// send http request
 	res, err := c.http.Do(req)
 	if err != nil {
 		return err
@@ -44,7 +43,6 @@ func (c *HTTPClient) Add(key, value string, ttl time.Duration) error {
 func (c *HTTPClient) Set(key, value string, ttl time.Duration) error {
 	req, err := c.createAddSetRequest("PUT", "http://localhost:8080/api/v1/set", key, value, ttl)
 
-	// send http request
 	res, err := c.http.Do(req)
 	if err != nil {
 		return err
@@ -56,16 +54,11 @@ func (c *HTTPClient) Set(key, value string, ttl time.Duration) error {
 }
 
 func (c *HTTPClient) Get(key string) (string, error) {
-	req, err := http.NewRequest("GET", "http://localhost:8080/api/v1/get", nil)
+	req, err := c.createGetDelRequest("GET", "http://localhost:8080/api/v1/get", key)
 	if err != nil {
 		return "", err
 	}
 
-	queryParams := req.URL.Query()
-	queryParams.Add("key", key)
-	req.URL.RawQuery = queryParams.Encode()
-
-	// send the request
 	res, err := c.http.Do(req)
 	if err != nil {
 		return "", err
@@ -75,16 +68,11 @@ func (c *HTTPClient) Get(key string) (string, error) {
 }
 
 func (c *HTTPClient) Del(key string) error {
-	req, err := http.NewRequest("DELETE", "http://localhost:8080/api/v1/del", nil)
+	req, err := c.createGetDelRequest("DELETE", "http://localhost:8080/api/v1/del", key)
 	if err != nil {
 		return err
 	}
 
-	queryParams := req.URL.Query()
-	queryParams.Add("key", key)
-	req.URL.RawQuery = queryParams.Encode()
-
-	// send the request
 	res, err := c.http.Do(req)
 	if err != nil {
 		return err
@@ -140,6 +128,19 @@ func (c *HTTPClient) createPostForm(key, value, expiresAt string) url.Values {
 	return form
 }
 
+func (c *HTTPClient) createGetDelRequest(method, url, key string) (*http.Request, error) {
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	queryParams := req.URL.Query()
+	queryParams.Add("key", key)
+	req.URL.RawQuery = queryParams.Encode()
+
+	return req, nil
+}
+
 // aggregate over client and parser
 type ClientApp struct {
 	cl Client
@@ -155,6 +156,7 @@ func New(client Client) *ClientApp {
 
 // run the entire client app
 func (app ClientApp) Run() {
+	// receiving user input
 	op, key, val, ttl, err := app.p.Parse()
 	if err != nil {
 		fmt.Println("Error:", err)
@@ -163,6 +165,7 @@ func (app ClientApp) Run() {
 
 	var res string
 
+	// mapping operation to its corresponding handler
 	switch *op {
 	case "add":
 		err = app.cl.Add(*key, *val, *ttl)
