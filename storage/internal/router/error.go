@@ -8,11 +8,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// error -> http status code map
 var errStatus = map[error]int{
 	storage.ErrKeyNotFound:      http.StatusNotFound,
 	storage.ErrKeyAlreadyExists: http.StatusBadRequest,
 }
 
+// handles any errors occuring during runtime of the storage
 type errHandler struct {
 	errLog *logrus.Logger
 }

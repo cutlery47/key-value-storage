@@ -7,8 +7,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// logging widdleware for http server
 func WithLogging(h http.Handler, log *logrus.Logger) http.Handler {
 	logFunc := func(rw http.ResponseWriter, r *http.Request) {
+		// measure request handling time
 		start := time.Now()
 
 		uri := r.RequestURI

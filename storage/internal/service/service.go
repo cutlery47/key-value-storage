@@ -6,6 +6,8 @@ import (
 	"github.com/cutlery47/key-value-storage/storage/internal/storage"
 )
 
+// handles and transforms incoming request data
+// passes entries down to the storage layer
 type Service struct {
 	storage storage.Storage
 }
@@ -31,14 +33,7 @@ func (s *Service) Add(key, value, expiresAt string) error {
 		timeExpiresAt = parsed
 	}
 
-	entry := storage.InEntry{
-		Key: key,
-		Value: storage.Value{
-			Data:      value,
-			UpdatedAt: timeUpdatedAt,
-			ExpiresAt: timeExpiresAt,
-		},
-	}
+	entry := storage.EntryFromData(key, value, timeUpdatedAt, timeExpiresAt)
 
 	return s.storage.Create(entry)
 }
@@ -55,14 +50,7 @@ func (s *Service) Set(key, value, expiresAt string) error {
 		timeExpiresAt = parsed
 	}
 
-	entry := storage.InEntry{
-		Key: key,
-		Value: storage.Value{
-			Data:      value,
-			UpdatedAt: timeUpdateddAt,
-			ExpiresAt: timeExpiresAt,
-		},
-	}
+	entry := storage.EntryFromData(key, value, timeUpdateddAt, timeExpiresAt)
 
 	return s.storage.Update(entry)
 }
@@ -73,7 +61,7 @@ func (s *Service) Get(key string) (string, error) {
 		return "", err
 	}
 
-	jsonEntry, err := storage.ToJSON(*entry)
+	jsonEntry, err := entry.ToJSON()
 	if err != nil {
 		return "", err
 	}

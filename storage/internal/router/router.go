@@ -8,10 +8,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// responsible for routing http-request
+// to the specific handler
 type Router struct {
-	mux  *http.ServeMux
 	ctrl *Controller
-	log  *logrus.Logger
+
+	mux *http.ServeMux
+	log *logrus.Logger
 }
 
 func New(service *service.Service, infoLog, errLog *logrus.Logger) *Router {
@@ -41,6 +44,8 @@ func (r *Router) Handler() http.Handler {
 	return WithLogging(r.mux, r.log)
 }
 
+// responsible for parsing and packing http-requests/responses
+// passes received data down to the service layer
 type Controller struct {
 	service    *service.Service
 	errHandler errHandler
@@ -52,14 +57,9 @@ func (c *Controller) handleAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.ParseForm()
+	key, value, expiresAt := c.parsePostForm(r)
 
-	key := r.PostFormValue("key")
-	value := r.PostFormValue("value")
-	expires_at := r.PostFormValue("expires_at")
-
-	err := c.service.Add(key, value, expires_at)
-	if err != nil {
+	if err := c.service.Add(key, value, expiresAt); err != nil {
 		status, msg := c.errHandler.Handle(err)
 		http.Error(w, msg, status)
 		return
@@ -74,13 +74,9 @@ func (c *Controller) handleSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.ParseForm()
-	key := r.Form.Get("key")
-	value := r.Form.Get("value")
-	expires_at := r.Form.Get("expires_at")
+	key, value, expiresAt := c.parsePostForm(r)
 
-	err := c.service.Set(key, value, expires_at)
-	if err != nil {
+	if err := c.service.Set(key, value, expiresAt); err != nil {
 		status, msg := c.errHandler.Handle(err)
 		http.Error(w, msg, status)
 		return
@@ -116,12 +112,19 @@ func (c *Controller) handleDel(w http.ResponseWriter, r *http.Request) {
 
 	key := r.URL.Query().Get("key")
 
-	err := c.service.Delete(key)
-	if err != nil {
+	if err := c.service.Delete(key); err != nil {
 		status, msg := c.errHandler.Handle(err)
 		http.Error(w, msg, status)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (c Controller) parsePostForm(r *http.Request) (key, value, expiresAt string) {
+	key = r.PostFormValue("key")
+	value = r.PostFormValue("value")
+	expiresAt = r.PostFormValue("expires_at")
+
+	return key, value, expiresAt
 }

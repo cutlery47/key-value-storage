@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// basically a CRUD repository for entries
 type Storage interface {
 	Create(entry InEntry) error
 	Read(key string) (*OutEntry, error)
@@ -18,44 +19,48 @@ type Storage interface {
 	Delete(key string) error
 }
 
+// storage impl
+// handles entry storing logic
+// as well as ttl cleanups
 type LocalStorage struct {
 	file fileHandler
-	mu   *sync.Mutex
-	log  *logrus.Logger
+
+	mu      *sync.Mutex
+	infoLog *logrus.Logger
+	errLog  *logrus.Logger
 }
 
-func NewLocalStorage(filepath string, log *logrus.Logger) *LocalStorage {
+func NewLocalStorage(filepath string, infoLog *logrus.Logger, errLog *logrus.Logger) *LocalStorage {
 	file := fileHandler{
 		filepath: filepath,
 	}
 
 	ls := &LocalStorage{
-		file: file,
-		mu:   &sync.Mutex{},
-		log:  log,
+		file:    file,
+		mu:      &sync.Mutex{},
+		infoLog: infoLog,
+		errLog:  errLog,
 	}
 
-	// default clanup time - 10 seconds
+	// default cleanup interval - 10 seconds
 	go ls.Cleanup(10 * time.Second)
 
 	return ls
 }
 
 func (ls *LocalStorage) Create(entry InEntry) error {
-	// reading data from a file
 	data, err := ls.file.read()
 	if err != nil {
 		return err
 	}
 
-	// check if provided value is already stored
+	// check if entry key matches any stored key
 	if _, ok := (*data)[entry.Key]; ok {
 		return ErrKeyAlreadyExists
 	} else {
 		(*data)[entry.Key] = entry.Value
 	}
 
-	// updating file with new data
 	if err := ls.file.flush(*data); err != nil {
 		return err
 	}
@@ -64,15 +69,13 @@ func (ls *LocalStorage) Create(entry InEntry) error {
 }
 
 func (ls *LocalStorage) Read(key string) (*OutEntry, error) {
-	// reading data from a file
 	data, err := ls.file.read()
 	if err != nil {
 		return nil, err
 	}
 
-	// retrieve data
+	// retrieve and check if key exists
 	val, ok := (*data)[key]
-	// check if key exists
 	if !ok {
 		return nil, ErrKeyNotFound
 	}
@@ -81,13 +84,12 @@ func (ls *LocalStorage) Read(key string) (*OutEntry, error) {
 }
 
 func (ls *LocalStorage) Update(entry InEntry) error {
-	// reading data from a file
 	data, err := ls.file.read()
 	if err != nil {
 		return err
 	}
 
-	// check if provided key is already stored
+	// check if entry key matches any stored key
 	v, ok := (*data)[entry.Key]
 	if !ok {
 		return ErrKeyNotFound
@@ -105,7 +107,6 @@ func (ls *LocalStorage) Update(entry InEntry) error {
 
 	(*data)[entry.Key] = v
 
-	// updating file with new data
 	if err := ls.file.flush(*data); err != nil {
 		return err
 	}
@@ -114,20 +115,18 @@ func (ls *LocalStorage) Update(entry InEntry) error {
 }
 
 func (ls *LocalStorage) Delete(key string) error {
-	// reading data from a file
 	data, err := ls.file.read()
 	if err != nil {
 		return err
 	}
 
-	// check if data exists
+	// check if entry key matches any stored key
 	if _, ok := (*data)[key]; !ok {
 		return ErrKeyNotFound
 	} else {
 		delete(*data, key)
 	}
 
-	// updating file with new data
 	if err := ls.file.flush(*data); err != nil {
 		return err
 	}
@@ -137,12 +136,12 @@ func (ls *LocalStorage) Delete(key string) error {
 
 func (ls *LocalStorage) Cleanup(cooldown time.Duration) {
 	for {
-		// clean expired data each cooldown-amount seconds
+		// cleans up expired data each cooldown-amount seconds
 		<-time.After(cooldown)
 
 		now := time.Now()
 
-		ls.log.WithFields(logrus.Fields{
+		ls.infoLog.WithFields(logrus.Fields{
 			"status": "started",
 			"at":     now,
 		}).Info()
@@ -152,14 +151,19 @@ func (ls *LocalStorage) Cleanup(cooldown time.Duration) {
 
 		fileData, err := ls.file.read()
 		if err != nil {
-			return
+			ls.errLog.WithFields(
+				logrus.Fields{
+					"time":  time.Now(),
+					"error": err.Error(),
+				},
+			).Error()
 		}
 
 		// iterating over file data and calculating
 		// whether the expiration time exceedes current time
 		for k, v := range *fileData {
 			if v.ExpiresAt.Before(now) {
-				ls.log.WithFields(logrus.Fields{
+				ls.infoLog.WithFields(logrus.Fields{
 					"status": "found",
 					"data":   fmt.Sprintf("key=%v: value=%v \n", k, v.Data),
 					"at":     now,
@@ -170,12 +174,17 @@ func (ls *LocalStorage) Cleanup(cooldown time.Duration) {
 		}
 
 		if err := ls.file.flush(*fileData); err != nil {
-			return
+			ls.errLog.WithFields(
+				logrus.Fields{
+					"time":  time.Now(),
+					"error": err.Error(),
+				},
+			).Error()
 		}
 
 		ls.mu.Unlock()
 
-		ls.log.WithFields(logrus.Fields{
+		ls.infoLog.WithFields(logrus.Fields{
 			"status": "ended",
 			"at":     now,
 		}).Info()

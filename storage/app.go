@@ -30,7 +30,7 @@ func Run() {
 		log.Fatal("couldn't configure error logger", err)
 	}
 
-	ls := storage.NewLocalStorage("storage.data", cleLog)
+	ls := storage.NewLocalStorage("storage.data", cleLog, errLog)
 	se := service.New(ls)
 	rt := router.New(se, reqLog, errLog)
 	serv := server.New(rt.Handler())

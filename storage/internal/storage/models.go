@@ -12,14 +12,24 @@ type InEntry struct {
 	Value Value
 }
 
-// creating entry from json
-func FromJSON(jsonEntry []byte) (InEntry, error) {
-	entry := InEntry{}
-	if err := json.Unmarshal(jsonEntry, &entry); err != nil {
-		log.Println(err)
-		return entry, ErrJSONUnmarshall
+type Value struct {
+	// essentially a value of the key
+	Data string `json:"data"`
+	// time info
+	UpdatedAt time.Time `json:"updated_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// basiaclly a default InEntry constructor
+func EntryFromData(key, value string, updatedAt, expiresAt time.Time) InEntry {
+	return InEntry{
+		Key: key,
+		Value: Value{
+			Data:      value,
+			UpdatedAt: updatedAt,
+			ExpiresAt: expiresAt,
+		},
 	}
-	return entry, nil
 }
 
 // entry, provided by the storage
@@ -29,7 +39,7 @@ type OutEntry struct {
 }
 
 // converting entry to json
-func ToJSON(entry OutEntry) ([]byte, error) {
+func (entry OutEntry) ToJSON() ([]byte, error) {
 	jsonEntry, err := json.Marshal(entry)
 	if err != nil {
 		log.Println(err)
@@ -37,12 +47,4 @@ func ToJSON(entry OutEntry) ([]byte, error) {
 	}
 
 	return jsonEntry, nil
-}
-
-type Value struct {
-	// essentially a value of the key
-	Data string `json:"data"`
-	// time info
-	UpdatedAt time.Time `json:"updated_at"`
-	ExpiresAt time.Time `json:"expires_at"`
 }

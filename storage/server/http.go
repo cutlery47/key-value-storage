@@ -17,8 +17,7 @@ const (
 )
 
 type Server struct {
-	httpServ *http.Server
-
+	httpServ        *http.Server
 	shutdownTimeout time.Duration
 }
 
@@ -57,7 +56,7 @@ func (s *Server) Serve() {
 
 // graceful shutdown
 func (s *Server) Shutdown(sigChan <-chan os.Signal) error {
-	// waiting for shutdown signal to arrive
+	// waiting for shutdown signal
 	<-sigChan
 
 	log.Println("http server shutdown")
