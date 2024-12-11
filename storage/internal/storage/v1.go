@@ -13,10 +13,10 @@ import (
 
 // basically a CRUD repository for entries
 type Storage interface {
-	Create(entry InEntry) error
-	Read(key string) (*OutEntry, error)
-	Update(entry InEntry) error
-	Delete(key string) error
+	Create(entry Entry) error
+	Read(key Key) (Entry, error)
+	Update(entry Entry) error
+	Delete(key Key) error
 }
 
 // storage impl
