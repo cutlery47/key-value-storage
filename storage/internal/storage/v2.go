@@ -14,26 +14,35 @@ import (
 
 type ImprovedStorage struct {
 	cc *cache
-	fl *file
 
-	infoLog *logrus.Logger
-	errLog  *logrus.Logger
-
-	errChan chan<- error
+	errLog *logrus.Logger
 }
 
-func NewImprovedStorage(errLog *logrus.Logger) *ImprovedStorage {
+func NewImprovedStorage(filepath string, errLog *logrus.Logger) (*ImprovedStorage, error) {
 	st := &ImprovedStorage{
+		cc: &cache{
+			sync.RWMutex{},
+			make(store),
+		},
+
 		errLog: errLog,
 	}
 
-	if err := st.restore(); err != nil {
+	fd, err := os.OpenFile(filepath, os.O_APPEND|os.O_RDWR, 0777)
+	if err != nil {
+		return nil, fmt.Errorf("os.OpenFile: %v", err)
+	}
+
+	if err := st.restore(fd); err != nil {
 		if !errors.Is(err, ErrNothingToRestore) {
 			log.Println("failed to restore state: ", err)
 		}
+		return nil, err
 	}
 
-	return st
+	go st.flush(fd, time.Minute)
+
+	return st, nil
 }
 
 func (st *ImprovedStorage) Create(entry Entry) error {
@@ -72,27 +81,39 @@ func (st *ImprovedStorage) Delete(key Key) error {
 	return nil
 }
 
-func (st *ImprovedStorage) flush(to time.Duration) {
+func (st *ImprovedStorage) flush(fd *os.File, to time.Duration) {
 	for {
-		st.cc.RLock()
-		st.fl.flush(st.cc.data, st.errChan)
-		st.cc.RUnlock()
-
 		time.Sleep(to)
+
+		data, err := json.Marshal(st.cc.data)
+		if err != nil {
+			log.Println("json.Marshal:", err)
+			return
+		}
+
+		if _, err := fd.Write(data); err != nil {
+			log.Println("fd.Write:", err)
+		}
 	}
 }
 
 // restores storage state from disk
-func (st *ImprovedStorage) restore() error {
-	data, err := st.fl.read()
+func (st *ImprovedStorage) restore(fd *os.File) error {
+	stat, err := fd.Stat()
 	if err != nil {
-		return err
+		return fmt.Errorf("fd.Stat: %v", err)
 	}
 
-	log.Println(data)
-	return nil
+	buf := make([]byte, stat.Size())
+	if _, err := fd.Read(buf); err != nil {
+		return fmt.Errorf("fd.Read: %v", err)
+	}
 
-	///...
+	if err := json.Unmarshal(buf, &st.cc.data); err != nil {
+		return fmt.Errorf("json.Unmarshall: %v", err)
+	}
+
+	return nil
 }
 
 // in-mem storage
@@ -125,44 +146,4 @@ func (cc *cache) del(key Key) {
 	cc.Lock()
 	delete(cc.data, key)
 	cc.Unlock()
-}
-
-// abstraction over file i/o
-type file struct {
-	fd *os.File
-}
-
-func newFile(filepath string) (*file, error) {
-	fd, err := os.OpenFile(filepath, os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		return nil, err
-	}
-
-	return &file{
-		fd: fd,
-	}, nil
-}
-
-// flush data onto disk
-func (f *file) flush(data store, errChan chan<- error) {
-	raw, err := json.Marshal(data)
-	if err != nil {
-		errChan <- fmt.Errorf("json.Marshall: %v", err)
-		return
-	}
-
-	if _, err = f.fd.Write(raw); err != nil {
-		errChan <- fmt.Errorf("f.fd.Write: %v", err)
-		return
-	}
-}
-
-// read data from disk
-func (f *file) read() ([]byte, error) {
-	buf := []byte{}
-	if _, err := f.fd.Read(buf); err != nil {
-		return nil, err
-	}
-
-	return buf, nil
 }
