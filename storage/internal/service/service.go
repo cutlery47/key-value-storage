@@ -56,7 +56,7 @@ func (s *Service) Set(key, value, expiresAt string) error {
 }
 
 func (s *Service) Get(key string) (string, error) {
-	entry, err := s.storage.Read(key)
+	entry, err := s.storage.Read(storage.Key(key))
 	if err != nil {
 		return "", err
 	}
@@ -70,5 +70,5 @@ func (s *Service) Get(key string) (string, error) {
 }
 
 func (s *Service) Delete(key string) error {
-	return s.storage.Delete(key)
+	return s.storage.Delete(storage.Key(key))
 }

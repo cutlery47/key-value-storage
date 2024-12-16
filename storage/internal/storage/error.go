@@ -10,4 +10,5 @@ var (
 	ErrJSONMarshall     = errors.New("error when marshalling JSON")
 	ErrJSONUnmarshall   = errors.New("error when unmarshalling JSON")
 	ErrCacheMiss        = errors.New("cache miss")
+	ErrNothingToRestore = errors.New("nothing to restore")
 )

@@ -2,7 +2,9 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -20,11 +22,18 @@ type ImprovedStorage struct {
 	errChan chan<- error
 }
 
-func NewImprovedStorage(errLog, infoLog *logrus.Logger) *ImprovedStorage {
-	return &ImprovedStorage{
-		infoLog: infoLog,
-		errLog:  errLog,
+func NewImprovedStorage(errLog *logrus.Logger) *ImprovedStorage {
+	st := &ImprovedStorage{
+		errLog: errLog,
 	}
+
+	if err := st.restore(); err != nil {
+		if !errors.Is(err, ErrNothingToRestore) {
+			log.Println("failed to restore state: ", err)
+		}
+	}
+
+	return st
 }
 
 func (st *ImprovedStorage) Create(entry Entry) error {
@@ -79,6 +88,9 @@ func (st *ImprovedStorage) restore() error {
 	if err != nil {
 		return err
 	}
+
+	log.Println(data)
+	return nil
 
 	///...
 }

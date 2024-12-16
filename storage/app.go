@@ -13,24 +13,24 @@ import (
 
 func Run() {
 	// request logger
-	reqLog, err := logger.NewJsonFile("storage/logger/logs/requests.log", logrus.InfoLevel)
+	reqLog, err := logger.NewJsonFile("logger/logs/requests.log", logrus.InfoLevel)
 	if err != nil {
 		log.Fatal("couldn't configure request logger:", err)
 	}
 
 	// cleanup logger
-	cleLog, err := logger.NewJsonFile("storage/logger/logs/cleanup.log", logrus.InfoLevel)
+	_, err = logger.NewJsonFile("logger/logs/cleanup.log", logrus.InfoLevel)
 	if err != nil {
 		log.Fatal("couldn't configure cleanup logger", err)
 	}
 
 	// error logger
-	errLog, err := logger.NewJsonFile("storage/logger/logs/error.log", logrus.ErrorLevel)
+	errLog, err := logger.NewJsonFile("logger/logs/error.log", logrus.ErrorLevel)
 	if err != nil {
 		log.Fatal("couldn't configure error logger", err)
 	}
 
-	ls := storage.NewLocalStorage("storage.data", cleLog, errLog)
+	ls := storage.NewImprovedStorage(errLog)
 	se := service.New(ls)
 	rt := router.New(se, reqLog, errLog)
 	serv := server.New(rt.Handler())

@@ -48,7 +48,7 @@ func NewLocalStorage(filepath string, infoLog *logrus.Logger, errLog *logrus.Log
 	return ls
 }
 
-func (ls *LocalStorage) Create(entry InEntry) error {
+func (ls *LocalStorage) Create(entry Entry) error {
 	data, err := ls.file.read()
 	if err != nil {
 		return err
@@ -68,22 +68,22 @@ func (ls *LocalStorage) Create(entry InEntry) error {
 	return nil
 }
 
-func (ls *LocalStorage) Read(key string) (*OutEntry, error) {
+func (ls *LocalStorage) Read(key Key) (Entry, error) {
 	data, err := ls.file.read()
 	if err != nil {
-		return nil, err
+		return Entry{}, err
 	}
 
 	// retrieve and check if key exists
 	val, ok := (*data)[key]
 	if !ok {
-		return nil, ErrKeyNotFound
+		return Entry{}, ErrKeyNotFound
 	}
 
-	return &OutEntry{Value: val.Data, Key: key}, nil
+	return Entry{Value: val, Key: key}, nil
 }
 
-func (ls *LocalStorage) Update(entry InEntry) error {
+func (ls *LocalStorage) Update(entry Entry) error {
 	data, err := ls.file.read()
 	if err != nil {
 		return err
@@ -114,7 +114,7 @@ func (ls *LocalStorage) Update(entry InEntry) error {
 	return nil
 }
 
-func (ls *LocalStorage) Delete(key string) error {
+func (ls *LocalStorage) Delete(key Key) error {
 	data, err := ls.file.read()
 	if err != nil {
 		return err
@@ -200,7 +200,7 @@ type fileHandler struct {
 }
 
 // runtime data storage
-type data map[string]Value
+type data map[Key]Value
 
 // reads data from a file by specified filename
 // converts raw JSON data into a map
